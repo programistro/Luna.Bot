@@ -42,7 +42,7 @@ class Program
         
         _services = collection;
         
-        string tokken = "MTM1MDQ1MjMxNzE5MDc1MDIxOA.Gdfm7c.8zYOhamt_udoTj7OXGDz2B2v7e3LGo4T-5pzjM";
+        string tokken = "";
         
         await _client.LoginAsync(TokenType.Bot, tokken);
         await _client.StartAsync();
