@@ -2,7 +2,10 @@
 using Discord;
 using Discord.Commands;
 using Discord.Interactions;
+using Discord.Net;
 using Discord.WebSocket;
+using Microsoft.Extensions.DependencyInjection;
+using Newtonsoft.Json;
 using SharpLink;
 
 namespace Luna.Bot;
@@ -15,36 +18,70 @@ class Program
     
     private static InteractionService _interactionService;
     
+    private static CommandService _commands;
+    
+    private static IServiceProvider _services;
+    
     private static async Task Main() 
     {
         _client = new DiscordSocketClient(new DiscordSocketConfig { GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent });
         _client.MessageReceived += 
             ClientOnMessageReceived;
         _client.Log += ClientOnLog;
+        _client.Ready += ClientOnReady;
         _client.ReactionAdded += ClientOnReactionAdded;
+        _client.SlashCommandExecuted += HandleInteraction;
         
-        lavalinkManager = new LavalinkManager(_client, new LavalinkManagerConfig
-        {
-            RESTHost = "localhost",
-            RESTPort = 2333,
-            WebSocketHost = "localhost",
-            WebSocketPort = 2333,
-            Authorization = "YOUR_SECRET_AUTHORIZATION_KEY",
-            TotalShards = 1 
-        });
-
-        _client.Ready += async () =>
-        {
-            await lavalinkManager.StartAsync();
-        };
+        _commands = new CommandService();
+        await _commands.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
+        
+        var collection = new ServiceCollection()
+            .AddSingleton(_client)
+            .AddSingleton(_commands)
+            .BuildServiceProvider();
+        
+        _services = collection;
         
         string tokken = "MTM1MDQ1MjMxNzE5MDc1MDIxOA.Gdfm7c.8zYOhamt_udoTj7OXGDz2B2v7e3LGo4T-5pzjM";
         
         await _client.LoginAsync(TokenType.Bot, tokken);
         await _client.StartAsync();
-
+        
         Console.WriteLine("Listening...");
         Console.ReadLine();
+    }
+    
+    private static async Task HandleInteraction(SocketInteraction interaction)
+    {
+        await _commands.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
+        var context = new SocketInteractionContext(_client, interaction);
+        
+        var slah = interaction as SocketSlashCommand;
+
+        if (slah.CommandName == "ban")
+        {
+            // await context.Guild.AddBanAsync();
+        }
+    }
+
+    private static async Task ClientOnReady()
+    {
+        var ban = new SlashCommandBuilder() 
+            .WithName("ban")   
+            .WithDescription("забанить нахуй5656");
+        
+        try
+        {
+            var guid = _client.GetGuild(983375413160058904);
+            
+            await guid.CreateApplicationCommandAsync(ban.Build());   // Создаём команду
+        }
+        catch (ApplicationCommandException exception)   // Обработчик каких-либо исключений
+        {
+            var json = JsonConvert.SerializeObject(exception.Errors, Formatting.Indented);
+        
+            Console.WriteLine(json);
+        }
     }
 
     private static async Task ClientOnReactionAdded(Cacheable<IUserMessage, ulong> userMessage, Cacheable<IMessageChannel, ulong> messageChannel, SocketReaction reaction)
@@ -86,23 +123,5 @@ class Program
                 message.Channel.SendMessageAsync($"{message.Author.Username} {string.Join(",", message.Author.Activities)}");
             }
         }
-    }
-}
-
-public class MusicModule : InteractionModuleBase<SocketInteractionContext>
-{
-    [SlashCommand("play", "Воспроизвести музыку")]
-    public async Task PlayAsync()
-    {
-        // Context автоматически доступен здесь
-        var guild = Context.Guild;
-        var channel = Context.Channel;
-        var user = Context.User;
-        
-        var player = Program.lavalinkManager.GetPlayer(Context.Guild.Id) ?? 
-                     await Program.lavalinkManager.JoinAsync(Context.Guild.GetVoiceChannel(Context.User.Id));
-        LoadTracksResponse response = await Program.lavalinkManager.GetTracksAsync("https://www.youtube.com/watch?v=4mF7h5WRs6A&list=RD4mF7h5WRs6A&start_radio=1&ab_channel=%E8%8F%AF%E7%B4%8D%E9%9F%B3%E6%A8%82%E8%A5%BF%E6%B4%8B%E6%97%A5%E9%9F%93%E9%A0%BB%E9%81%93");
-        LavalinkTrack track = response.Tracks.First();
-        await player.PlayAsync(track);
     }
 }
