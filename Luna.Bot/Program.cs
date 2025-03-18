@@ -60,21 +60,51 @@ class Program
 
         if (slah.CommandName == "ban")
         {
-            // await context.Guild.AddBanAsync();
+            await context.Guild.AddBanAsync((IUser)slah.Data.Options.FirstOrDefault(x => x.Name == "user").Value);
+            await HandleListRoleCommand(slah);
+        }
+        if (slah.CommandName == "kick")
+        {
+            var user = ((IGuildUser)slah.Data.Options.FirstOrDefault(x => x.Name == "user").Value);
+            await user.KickAsync();
+            await HandleListRoleCommand(slah);
         }
     }
 
+    private static async Task HandleListRoleCommand(SocketSlashCommand command)
+    {
+        var guildUser = (SocketGuildUser)command.Data.Options.First().Value;
+
+        var roleList = string.Join(",\n", guildUser.Roles.Where(x => !x.IsEveryone).Select(x => x.Mention));
+
+        var embedBuiler = new EmbedBuilder()
+            .WithAuthor(guildUser.ToString(), guildUser.GetAvatarUrl() ?? guildUser.GetDefaultAvatarUrl())
+            .WithTitle("Roles")
+            .WithDescription(roleList)
+            .WithColor(Color.Green)
+            .WithCurrentTimestamp();
+
+        await command.RespondAsync(embed: embedBuiler.Build());
+    }
+    
     private static async Task ClientOnReady()
     {
         var ban = new SlashCommandBuilder() 
             .WithName("ban")   
-            .WithDescription("забанить нахуй5656");
+            .WithDescription("забанить нахуй5656")
+            .AddOption("user", ApplicationCommandOptionType.User, "выберите пользователя", isRequired: true);
+        
+        var kick = new SlashCommandBuilder() 
+            .WithName("kick")   
+            .WithDescription("кикнуть нахуй5656")
+            .AddOption("user", ApplicationCommandOptionType.User, "выберите пользователя", isRequired: true);
         
         try
         {
             var guid = _client.GetGuild(983375413160058904);
             
             await guid.CreateApplicationCommandAsync(ban.Build());   // Создаём команду
+            await guid.CreateApplicationCommandAsync(kick.Build());   // Создаём команду
         }
         catch (ApplicationCommandException exception)   // Обработчик каких-либо исключений
         {
